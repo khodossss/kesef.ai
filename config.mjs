@@ -38,7 +38,9 @@ export function getChrome() {
   if (override && existsSync(override)) return override;
   const found = CHROME_CANDIDATES.find(p => existsSync(p));
   if (!found) {
-    throw new Error('No system Chrome/Edge found. Install Google Chrome, or set CHROME_PATH in .env to the browser executable.');
+    throw new Error(
+      'No system Chrome/Edge found. Install Google Chrome, or set CHROME_PATH in .env to the browser executable.',
+    );
   }
   return found;
 }
@@ -52,7 +54,11 @@ export function profileDir(provider) {
 }
 
 export function safeUrl(page) {
-  try { return page.url(); } catch { return ''; }
+  try {
+    return page.url();
+  } catch {
+    return '';
+  }
 }
 
 // Per-provider: the login page to warm, how we recognise a logged-in page,
@@ -133,7 +139,9 @@ export function getCredentials(provider) {
   const p = PROVIDERS[provider];
   if (!p) throw new Error(`Unknown provider: ${provider}`);
   const creds = p.credentials(loadEnv());
-  const missing = Object.entries(creds).filter(([, v]) => !v).map(([k]) => k);
+  const missing = Object.entries(creds)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
   if (missing.length) throw new Error(`Missing credentials for ${provider}: ${missing.join(', ')}`);
   return creds;
 }
@@ -150,7 +158,11 @@ export function listProviders() {
   });
 }
 
-export const BANK_PROVIDERS = Object.entries(PROVIDERS).filter(([, p]) => p.kind === 'bank').map(([k]) => k);
-export const CARD_PROVIDERS = Object.entries(PROVIDERS).filter(([, p]) => p.kind === 'card').map(([k]) => k);
+export const BANK_PROVIDERS = Object.entries(PROVIDERS)
+  .filter(([, p]) => p.kind === 'bank')
+  .map(([k]) => k);
+export const CARD_PROVIDERS = Object.entries(PROVIDERS)
+  .filter(([, p]) => p.kind === 'card')
+  .map(([k]) => k);
 
 export const MONTHS_BACK = parseInt(process.env.SCRAPE_MONTHS_BACK || '12', 10);

@@ -69,16 +69,24 @@ const upRefresh = db.prepare(`
 export function save(result, nowIso) {
   const { provider, accounts } = result;
   let txnCount = 0;
-  const tx = db.prepare('BEGIN'); tx.run();
+  const tx = db.prepare('BEGIN');
+  tx.run();
   try {
     for (const a of accounts) {
       upAccount.run(provider, a.accountNumber, a.balance ?? null, a.currency ?? null, nowIso);
       for (const t of a.txns || []) {
         upTxn.run(
-          provider, a.accountNumber, String(t.identifier ?? ''),
-          t.date ?? null, t.processedDate ?? null,
-          t.chargedAmount ?? null, t.originalAmount ?? null, t.currency ?? t.originalCurrency ?? null,
-          t.description ?? '', t.memo ?? '', t.status ?? null,
+          provider,
+          a.accountNumber,
+          String(t.identifier ?? ''),
+          t.date ?? null,
+          t.processedDate ?? null,
+          t.chargedAmount ?? null,
+          t.originalAmount ?? null,
+          t.currency ?? t.originalCurrency ?? null,
+          t.description ?? '',
+          t.memo ?? '',
+          t.status ?? null,
           t.installment_number ?? t.installments?.number ?? null,
           t.installment_total ?? t.installments?.total ?? null,
         );
@@ -96,15 +104,30 @@ export function save(result, nowIso) {
 
 export function listAccounts(provider) {
   const where = provider ? 'WHERE provider = ?' : '';
-  return db.prepare(`SELECT * FROM accounts ${where} ORDER BY provider, account_number`).all(...(provider ? [provider] : []));
+  return db
+    .prepare(`SELECT * FROM accounts ${where} ORDER BY provider, account_number`)
+    .all(...(provider ? [provider] : []));
 }
 
 export function getTransactions({ provider, from, to, search, limit = 500 } = {}) {
-  const clauses = [], args = [];
-  if (provider) { clauses.push('provider = ?'); args.push(provider); }
-  if (from) { clauses.push('date >= ?'); args.push(from); }
-  if (to) { clauses.push('date <= ?'); args.push(to); }
-  if (search) { clauses.push('(description LIKE ? OR memo LIKE ?)'); args.push(`%${search}%`, `%${search}%`); }
+  const clauses = [],
+    args = [];
+  if (provider) {
+    clauses.push('provider = ?');
+    args.push(provider);
+  }
+  if (from) {
+    clauses.push('date >= ?');
+    args.push(from);
+  }
+  if (to) {
+    clauses.push('date <= ?');
+    args.push(to);
+  }
+  if (search) {
+    clauses.push('(description LIKE ? OR memo LIKE ?)');
+    args.push(`%${search}%`, `%${search}%`);
+  }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   args.push(limit);
   return db.prepare(`SELECT * FROM transactions ${where} ORDER BY date DESC LIMIT ?`).all(...args);
@@ -137,8 +160,9 @@ export function reconcile({ from, to } = {}) {
   // in the future have NOT been debited from the account yet.
   const now = new Date().toISOString();
   const allTx = getTransactions({ from: from || '0000', to: to || '9999', limit: 1000000 });
-  const futureCard = getTransactions({ limit: 1000000 })
-    .filter(t => cards.has(t.provider) && t.charged_amount < 0 && t.processed_date && t.processed_date > now);
+  const futureCard = getTransactions({ limit: 1000000 }).filter(
+    t => cards.has(t.provider) && t.charged_amount < 0 && t.processed_date && t.processed_date > now,
+  );
   const pendingCardBill = r2(futureCard.reduce((s, t) => s + t.charged_amount, 0)); // negative
 
   // Period ledger check: current balance = start + net of bank movements over [from,to].
@@ -146,14 +170,29 @@ export function reconcile({ from, to } = {}) {
   if (from || to) {
     const bankTx = allTx.filter(t => banks.has(t.provider));
     const net = r2(bankTx.reduce((s, t) => s + (t.charged_amount || 0), 0));
-    const repay = r2(bankTx.filter(t => t.charged_amount < 0 && CARD_REPAY_RE.test(t.description || '')).reduce((s, t) => s + t.charged_amount, 0));
-    const consumption = r2(allTx.filter(t => cards.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0));
-    ledger = { from, to, banks: [...banks], cards: [...cards], ledgerNet: net, impliedStartBalance: r2(currentBalance - net), cardRepaymentsDebited: repay, cardConsumption: consumption };
+    const repay = r2(
+      bankTx
+        .filter(t => t.charged_amount < 0 && CARD_REPAY_RE.test(t.description || ''))
+        .reduce((s, t) => s + t.charged_amount, 0),
+    );
+    const consumption = r2(
+      allTx.filter(t => cards.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0),
+    );
+    ledger = {
+      from,
+      to,
+      banks: [...banks],
+      cards: [...cards],
+      ledgerNet: net,
+      impliedStartBalance: r2(currentBalance - net),
+      cardRepaymentsDebited: repay,
+      cardConsumption: consumption,
+    };
   }
 
   return {
     currentBalance,
-    pendingCardBill,            // card purchases with a future billing date (negative)
+    pendingCardBill, // card purchases with a future billing date (negative)
     pendingCount: futureCard.length,
     availableBalance: r2(currentBalance + pendingCardBill),
     note: 'availableBalance = currentBalance − upcoming card bill. Card spending (cardConsumption) ≠ balance change: the balance moves via bank card repayments (cardRepaymentsDebited); never sum both.',

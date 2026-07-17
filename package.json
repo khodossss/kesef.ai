@@ -1,13 +1,31 @@
 {
-  "name": "bank-connector-live",
+  "name": "kesef-connector",
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "User-assisted (manual login) MCP + scraper for Israeli banks — native Windows, system Chrome",
-  "engines": { "node": ">=22" },
+  "description": "User-assisted (manual login) MCP connector for Israeli banks — native, system Chrome, read-only",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "check": "node tools/check-syntax.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run check && npm run lint && npm run format:check",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",
     "israeli-bank-scrapers-core": "^6.1.4",
     "puppeteer-core": "^24.10.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "eslint": "^9.28.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.3"
   }
 }

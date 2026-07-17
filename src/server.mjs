@@ -18,7 +18,11 @@ import { PROVIDERS, listProviders } from '../config.mjs';
 // protocol frames via process.stdout directly, unaffected by this.
 for (const m of ['log', 'info', 'debug', 'warn']) {
   console[m] = (...a) => {
-    try { process.stderr.write(a.map(x => (typeof x === 'string' ? x : inspect(x))).join(' ') + '\n'); } catch { /* never throw into caller */ }
+    try {
+      process.stderr.write(a.map(x => (typeof x === 'string' ? x : inspect(x))).join(' ') + '\n');
+    } catch {
+      /* never throw into caller */
+    }
   };
 }
 // Never let a stray async error kill the server.
@@ -59,12 +63,14 @@ const TOOLS = [
   },
   {
     name: 'list_accounts',
-    description: 'List stored accounts/cards with their latest balance and when they were last updated. Reads local data only — no browser.',
+    description:
+      'List stored accounts/cards with their latest balance and when they were last updated. Reads local data only — no browser.',
     inputSchema: { type: 'object', properties: { provider: { type: 'string', enum: PROVIDER_ENUM } } },
   },
   {
     name: 'get_transactions',
-    description: 'Query stored transactions. Filters: provider, from/to (ISO date), search (matches description/memo), limit. Reads local data only — no browser.',
+    description:
+      'Query stored transactions. Filters: provider, from/to (ISO date), search (matches description/memo), limit. Reads local data only — no browser.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -99,7 +105,9 @@ const server = new Server({ name: 'il-bank-live', version: '0.1.0' }, { capabili
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
-const text = obj => ({ content: [{ type: 'text', text: typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2) }] });
+const text = obj => ({
+  content: [{ type: 'text', text: typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2) }],
+});
 
 server.setRequestHandler(CallToolRequestSchema, async request => {
   const { name, arguments: args = {} } = request.params;
@@ -108,7 +116,8 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
       case 'providers':
         return text(listProviders());
       case 'warmup': {
-        if (!PROVIDER_ENUM.includes(args.provider)) throw new Error(`provider must be one of: ${PROVIDER_ENUM.join(', ')}`);
+        if (!PROVIDER_ENUM.includes(args.provider))
+          throw new Error(`provider must be one of: ${PROVIDER_ENUM.join(', ')}`);
         return text(await warmup(args.provider, { onProgress: m => console.error(`[warmup:${args.provider}] ${m}`) }));
       }
       case 'refresh': {
@@ -117,7 +126,12 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         const onProgress = m => console.error(`[refresh:${provider}] ${m}`);
         const result = await refresh(provider, { monthsBack: args.monthsBack, onProgress });
         const saved = store.save(result, new Date().toISOString());
-        return text({ ok: true, provider, ...saved, note: 'stored locally; query with get_transactions / list_accounts' });
+        return text({
+          ok: true,
+          provider,
+          ...saved,
+          note: 'stored locally; query with get_transactions / list_accounts',
+        });
       }
       case 'list_accounts':
         return text(store.listAccounts(args.provider));

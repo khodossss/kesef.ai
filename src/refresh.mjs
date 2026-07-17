@@ -15,9 +15,16 @@ import { createScraper } from 'israeli-bank-scrapers-core';
 import { getChrome, profileDir, getCredentials, MONTHS_BACK, PROVIDERS } from '../config.mjs';
 import { extractHapoalim } from './extractors/hapoalim.mjs';
 
-function log(onProgress, msg) { if (onProgress) onProgress(msg); }
+function log(onProgress, msg) {
+  if (onProgress) onProgress(msg);
+}
 
-const COMMON_ARGS = ['--start-maximized', '--no-first-run', '--no-default-browser-check', '--disable-blink-features=AutomationControlled'];
+const COMMON_ARGS = [
+  '--start-maximized',
+  '--no-first-run',
+  '--no-default-browser-check',
+  '--disable-blink-features=AutomationControlled',
+];
 
 // One-time manual login into a persistent profile. The human logs in, ticks
 // "trust this device" (and passes Cloudflare for cards), reaches the account page,
@@ -37,9 +44,16 @@ export async function warmup(provider, { onProgress } = {}) {
   });
   const [page] = await browser.pages();
   await page.goto(cfg.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
-  log(onProgress, `Войди вручную в окне ${provider}: логин, пароль, SMS-код, ОБЯЗАТЕЛЬНО «доверять этому устройству». Дойди до страницы счёта и ЗАКРОЙ окно.`);
+  log(
+    onProgress,
+    `Войди вручную в окне ${provider}: логин, пароль, SMS-код, ОБЯЗАТЕЛЬНО «доверять этому устройству». Дойди до страницы счёта и ЗАКРОЙ окно.`,
+  );
   await new Promise(resolve => browser.on('disconnected', resolve));
-  return { provider, warmed: true, note: 'Профиль прогрет. Теперь refresh должен пройти без SMS/Cloudflare, пока держится cookie доверия.' };
+  return {
+    provider,
+    warmed: true,
+    note: 'Профиль прогрет. Теперь refresh должен пройти без SMS/Cloudflare, пока держится cookie доверия.',
+  };
 }
 
 export async function refresh(provider, { monthsBack = MONTHS_BACK, onProgress } = {}) {
@@ -106,7 +120,10 @@ const PROGRESS_RU = {
 };
 
 async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
-  log(onProgress, `открываю ${provider} — вход автоматический; сбор занимает ~1–2 минуты, просто подожди (при Cloudflare пройди проверку в окне)`);
+  log(
+    onProgress,
+    `открываю ${provider} — вход автоматический; сбор занимает ~1–2 минуты, просто подожди (при Cloudflare пройди проверку в окне)`,
+  );
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - monthsBack);
   const scraper = createScraper({
@@ -121,7 +138,9 @@ async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
   });
   // Surface the library's own progress so a slow run doesn't look stuck / like it
   // is waiting for the user to type (it logs in on its own).
-  scraper.onProgress((companyId, payload) => log(onProgress, `${companyId}: ${PROGRESS_RU[payload?.type] || payload?.type || ''}`));
+  scraper.onProgress((companyId, payload) =>
+    log(onProgress, `${companyId}: ${PROGRESS_RU[payload?.type] || payload?.type || ''}`),
+  );
   const result = await scraper.scrape(creds);
   if (!result.success) throw new Error(`${provider} scrape failed: ${result.errorType} ${result.errorMessage || ''}`);
   return {
