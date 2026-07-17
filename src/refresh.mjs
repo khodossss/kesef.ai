@@ -42,29 +42,17 @@ export async function refresh(provider, { monthsBack = MONTHS_BACK, onProgress }
     }
 
     if (provider === 'isracard') {
+      // Isracard's only gate is Cloudflare; once cleared, the library logs in + extracts.
       await waitPastCloudflare(page, onProgress);
       log(onProgress, 'Cloudflare пройден — библиотека логинится и извлекает…');
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - monthsBack);
-      const scraper = createScraper({
-        companyId: CompanyTypes.isracard,
-        startDate,
-        combineInstallments: false,
-        additionalTransactionInformation: false,
-        browserContext: browser.defaultBrowserContext(),
-        defaultTimeout: 120000,
-      });
-      const result = await scraper.scrape(getCredentials('isracard'));
-      if (!result.success) throw new Error(`isracard scrape failed: ${result.errorType} ${result.errorMessage || ''}`);
-      return {
-        provider: 'isracard',
-        accounts: (result.accounts || []).map(a => ({
-          accountNumber: String(a.accountNumber),
-          balance: null,
-          currency: 'ILS',
-          txns: a.txns || [],
-        })),
-      };
+      return libScrape(browser, CompanyTypes.isracard, 'isracard', getCredentials('isracard'), monthsBack);
+    }
+
+    if (provider === 'leumi') {
+      // Leumi logs in automatically with username+password (no OTP); the library
+      // does everything. Visible browser lets the human handle a rare challenge.
+      log(onProgress, 'Leumi: библиотека логинится сама (логин+пароль); вмешайся в окне только при челлендже…');
+      return libScrape(browser, CompanyTypes.leumi, 'leumi', getCredentials('leumi'), monthsBack);
     }
 
     throw new Error(`no refresh strategy for ${provider}`);
@@ -89,6 +77,33 @@ async function autofillHapoalim(page, cfg, onProgress) {
   } catch (e) {
     log(onProgress, `автозаполнение не удалось (${e.message}); войди вручную в окне`);
   }
+}
+
+// Let the library do login + extraction inside our visible browser (browserContext),
+// then normalise its result for the store. Used by providers the library can log
+// into on its own (Isracard after Cloudflare, Leumi directly).
+async function libScrape(browser, companyId, provider, creds, monthsBack) {
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - monthsBack);
+  const scraper = createScraper({
+    companyId,
+    startDate,
+    combineInstallments: false,
+    additionalTransactionInformation: false,
+    browserContext: browser.defaultBrowserContext(),
+    defaultTimeout: 120000,
+  });
+  const result = await scraper.scrape(creds);
+  if (!result.success) throw new Error(`${provider} scrape failed: ${result.errorType} ${result.errorMessage || ''}`);
+  return {
+    provider,
+    accounts: (result.accounts || []).map(a => ({
+      accountNumber: String(a.accountNumber),
+      balance: a.balance ?? null,
+      currency: 'ILS',
+      txns: a.txns || [],
+    })),
+  };
 }
 
 async function waitPastCloudflare(page, onProgress, timeoutMs = 300000) {

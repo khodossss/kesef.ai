@@ -58,6 +58,17 @@ export const PROVIDERS = {
     },
     credentials: env => ({ userCode: env.HAPOALIM_USERCODE, password: env.HAPOALIM_PASSWORD }),
   },
+  leumi: {
+    companyId: CompanyTypes.leumi,
+    // LOGIN MODE: auto-visible. Leumi logs in with username+password (NO OTP), done
+    // automatically by the library. The visible browser lets the human step in only
+    // if a rare challenge/interstitial appears. Extraction is the library's too.
+    loginMode: 'auto-visible',
+    humanStep: 'обычно ничего — библиотека логинится сама; при челлендже пройти в окне',
+    usesStoredCredentials: true,
+    loginUrl: 'https://www.leumi.co.il/he',
+    credentials: env => ({ username: env.LEUMI_USERNAME, password: env.LEUMI_PASSWORD }),
+  },
   isracard: {
     companyId: CompanyTypes.isracard,
     // LOGIN MODE: cloudflare-then-auto. The human only clears the Cloudflare check

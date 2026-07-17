@@ -12,6 +12,8 @@
 - **Isracard** — открывается окно Chrome, ты проходишь **Cloudflare**; дальше библиотека
   `israeli-bank-scrapers-core` сама логинится (id + 6 цифр + пароль, без OTP) и извлекает
   данные своими парсерами.
+- **Leumi** — открывается окно; библиотека логинится **сама** (логин + пароль, без OTP)
+  и извлекает данные; человек нужен только если всплывёт челлендж в окне.
 
 Результат складывается в локальный SQLite (`data/bank.db`), запросы идут из него —
 без браузера и без повторного входа.
@@ -20,9 +22,9 @@
 
 - Node ≥ 22 (используется встроенный `node:sqlite`; проверено на Node 24).
 - Системный Google Chrome (или Edge). Скачивание Chromium отключено.
-- Креды в `../.env`: Isracard (`ISRACARD_ID`, `ISRACARD_CARD6DIGITS`, `ISRACARD_PASSWORD`)
-  и Hapoalim (`HAPOALIM_USERCODE`, `HAPOALIM_PASSWORD`) — для автозаполнения полей входа.
-  SMS-код Hapoalim вводится вручную в окне (не хранится).
+- Креды в `.env`: Isracard (`ISRACARD_ID`, `ISRACARD_CARD6DIGITS`, `ISRACARD_PASSWORD`),
+  Hapoalim (`HAPOALIM_USERCODE`, `HAPOALIM_PASSWORD`), Leumi (`LEUMI_USERNAME`,
+  `LEUMI_PASSWORD`). SMS-код Hapoalim вводится вручную в окне (не хранится).
 
 ## MCP-инструменты (в Claude Code: сервер `il-bank-live`)
 
