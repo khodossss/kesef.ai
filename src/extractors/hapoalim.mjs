@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../fetch-helpers.mjs';
 
 const BASE_URL = 'https://login.bankhapoalim.co.il';
-const DATE = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+const DATE = d =>
+  `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
 function convertTransactions(txns = []) {
   return txns.map(txn => {
@@ -40,19 +41,14 @@ function dateFromYmd(ymd) {
   return new Date(`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T00:00:00`).toISOString();
 }
 
-async function waitFor(fn, label, timeoutMs = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (await fn()) return;
-    await new Promise(r => setTimeout(r, 500));
-  }
-  throw new Error(`timeout waiting for ${label}`);
-}
-
 async function fetchTxnsXSRF(page, url) {
   const cookies = await page.cookies();
   const xsrf = cookies.find(c => c.name === 'XSRF-TOKEN');
-  const headers = { 'Content-Type': 'application/json;charset=UTF-8', pageUuid: '/current-account/transactions', uuid: randomUUID() };
+  const headers = {
+    'Content-Type': 'application/json;charset=UTF-8',
+    pageUuid: '/current-account/transactions',
+    uuid: randomUUID(),
+  };
   if (xsrf) headers['X-XSRF-TOKEN'] = xsrf.value;
   return fetchPostWithinPage(page, url, [], headers);
 }
@@ -66,7 +62,9 @@ async function getAccounts(page, { tries = 160, delayMs = 3000, onWait } = {}) {
     const hasApp = await page.evaluate(() => !!window.bnhpApp).catch(() => false);
     if (hasApp) {
       const restContext = (await page.evaluate(() => window.bnhpApp.restContext).catch(() => ''))?.slice(1);
-      const info = await fetchGetWithinPage(page, `${BASE_URL}/ServerServices/general/accounts`).catch(e => ({ __err: e.message }));
+      const info = await fetchGetWithinPage(page, `${BASE_URL}/ServerServices/general/accounts`).catch(e => ({
+        __err: e.message,
+      }));
       if (Array.isArray(info) && info.length) return { apiSiteUrl: `${BASE_URL}/${restContext}`, accountsInfo: info };
       last = info;
     }
