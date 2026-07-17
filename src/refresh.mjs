@@ -97,8 +97,16 @@ async function autofillHapoalim(page, cfg, onProgress) {
 // Mode B: the library launches and drives its OWN browser (visible), with a
 // persistent profile so a warmed "trust this device" / cf_clearance cookie lets
 // later runs go through silently. Robust inside the MCP stdio server.
+const PROGRESS_RU = {
+  INITIALIZING: 'запускаю браузер…',
+  START_SCRAPING: 'начинаю сбор…',
+  LOGGING_IN: 'вхожу автоматически (логин/пароль из .env)…',
+  END_SCRAPING: 'данные собраны',
+  TERMINATING: 'закрываю окно…',
+};
+
 async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
-  log(onProgress, `открываю ${provider} — библиотека логинится сама; при челлендже/Cloudflare пройди в окне`);
+  log(onProgress, `открываю ${provider} — вход автоматический; сбор занимает ~1–2 минуты, просто подожди (при Cloudflare пройди проверку в окне)`);
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - monthsBack);
   const scraper = createScraper({
@@ -111,6 +119,9 @@ async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
     args: [...COMMON_ARGS, `--user-data-dir=${profileDir(provider)}`],
     timeout: 0, // no navigation timeout — gives the human time at Cloudflare / 2FA
   });
+  // Surface the library's own progress so a slow run doesn't look stuck / like it
+  // is waiting for the user to type (it logs in on its own).
+  scraper.onProgress((companyId, payload) => log(onProgress, `${companyId}: ${PROGRESS_RU[payload?.type] || payload?.type || ''}`));
   const result = await scraper.scrape(creds);
   if (!result.success) throw new Error(`${provider} scrape failed: ${result.errorType} ${result.errorMessage || ''}`);
   return {
