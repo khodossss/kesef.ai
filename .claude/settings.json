@@ -1,0 +1,45 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"NKS r149 — orient before coding. Run nks_orient realm r149; then open your agenda: nks_orient realm r149 focus 6 (agent karta 6 = Khranitel konnektora; focus holon 5). Incoming posed_to vimarshas are your inbox — pick up or explicitly defer each. The entry skill runs the protocol.\"}}'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -Eq 'projects[\\\\/].*memory[\\\\/]' && { echo 'BLOCKED: local agent memory is forbidden for project state (see AGENTS.md, Persistence rules). Route the fact to AGENTS.md (repo conventions, code/git facts) or a hint vimarsha in realm r149 (graph). This dir stays frozen at its prohibition stub.' >&2; exit 2; } || exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -q 'git push' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"git push — update NKS r149: match reality (architecture/API/UX changes, not lockfile/refactor churn), advance the bianhua map and close resolved vimarshas, sweep the shipped contour (flip modes of realized designed nodes), sweep the inbox (visarjana answered posed_to), then run the after-green-push self-review. Uningested design/spec docs on this branch — intake them first.\"}}' || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -Eq '[\\\\/]specs[\\\\/][^\"]*\\.md|[\\\\/]docs[\\\\/][^\"]*design[^\"]*\\.md' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"A design draft was written; per AGENTS.md this file is a draft view — the graph (realm r149) is the design record. Intake it (intake skill, then design skill) in this session — do not defer to a push.\"}}' || true"
+          }
+        ]
+      }
+    ]
+  }
+}

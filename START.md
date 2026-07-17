@@ -77,10 +77,10 @@ SMS-код Hapoalim нигде не хранится: ты вводишь его
 
 ---
 
-## 4. Проверить, что сервер стартует
+## 4. Проверить, что код в порядке
 
 ```bash
-node --check src/server.mjs && echo OK
+npm run check    # node --check по всем модулям
 ```
 
 ---
@@ -96,8 +96,8 @@ claude mcp get il-bank-live      # должно быть: Status ✔ Connected
 
 Пример пути на Windows: `C:/Users/имя/kesef.ai/src/server.mjs`.
 
-*(Опционально — slash-команда `/finance-report`: скопируй `commands/finance-report.md`
-из репо в `~/.claude/commands/`.)*
+_(Опционально — slash-команда `/finance-report`: скопируй `commands/finance-report.md`
+из репо в `~/.claude/commands/`.)_
 
 ---
 
@@ -116,13 +116,6 @@ claude mcp get il-bank-live      # должно быть: Status ✔ Connected
 сначала сделай разовый **прогрев**: «сделай warmup Leumi» → откроется окно, войди вручную,
 поставь галочку **«доверять этому устройству»**, дойди до счёта и закрой окно. После этого
 «обнови Leumi» пойдёт без ручного входа, пока держится cookie доверия.
-
-Или напрямую из терминала (для проверки):
-
-```bash
-node poc-isracard.mjs      # Isracard: пройти Cloudflare
-node poc.mjs hapoalim      # Hapoalim: ввести SMS
-```
 
 ---
 
@@ -156,14 +149,14 @@ node poc.mjs hapoalim      # Hapoalim: ввести SMS
 
 ## 9. Траблшутинг
 
-| Симптом | Что делать |
-|---|---|
-| `No system Chrome/Edge found` | добавь путь в `config.mjs` → `CHROME_CANDIDATES`, или поставь Chrome |
-| ошибка про `node:sqlite` | нужен **Node ≥ 22** |
-| `refresh` висит | не закрывай окно, заверши вход (SMS/Cloudflare); таймаут 8 мин |
-| Cloudflare не проходит | подожди/поставь галочку «I'm not a robot» в окне |
-| Hapoalim авто-заполнение не сработало | войди в окне вручную — флоу не сломается |
-| MCP не виден в Claude | открой **новую** сессию; проверь `claude mcp get il-bank-live` |
+| Симптом                               | Что делать                                                           |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `No system Chrome/Edge found`         | добавь путь в `config.mjs` → `CHROME_CANDIDATES`, или поставь Chrome |
+| ошибка про `node:sqlite`              | нужен **Node ≥ 22**                                                  |
+| `refresh` висит                       | не закрывай окно, заверши вход (SMS/Cloudflare); таймаут 8 мин       |
+| Cloudflare не проходит                | подожди/поставь галочку «I'm not a robot» в окне                     |
+| Hapoalim авто-заполнение не сработало | войди в окне вручную — флоу не сломается                             |
+| MCP не виден в Claude                 | открой **новую** сессию; проверь `claude mcp get il-bank-live`       |
 
 ---
 

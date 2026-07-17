@@ -11,3 +11,9 @@ data/
 node_modules/
 *.log
 npm-debug.log*
+
+# workflow-suite scratch (design specs are drafts to intake into NKS, not repo state)
+docs/superpowers/
+
+# machine-local Claude Code settings (project settings.json IS committed)
+.claude/settings.local.json

@@ -1,4 +1,4 @@
-# bank-connector-live
+# kesef.ai
 
 Локальный MCP-коннектор к израильским банкам с **ручным входом через живой браузер**.
 Обходит защиты, о которые разбивается headless-скрейпинг: 2FA у Hapoalim и Cloudflare
@@ -28,27 +28,22 @@
 
 ## MCP-инструменты (в Claude Code: сервер `il-bank-live`)
 
-- `refresh(provider)` — открывает браузер, ты проходишь вход, данные обновляются в базе.
-  Интерактивно, до нескольких минут. `provider`: `hapoalim` | `isracard`.
+- `providers()` — какие банки/карты настроены на этой машине (по кредам в `.env`) и их режим входа. Вызывай первым — набор различается у каждого.
+- `refresh({provider, monthsBack?})` — открывает браузер, ты проходишь вход, данные обновляются в базе. Интерактивно, до нескольких минут.
+- `warmup(provider)` — разовый ручной вход с «доверять устройству» (для банков вроде Leumi), чтобы дальше `refresh` шёл без OTP/Cloudflare.
 - `list_accounts(provider?)` — счета/карты и последний баланс (из базы).
 - `get_transactions({provider?, from?, to?, search?, limit?})` — транзакции (из базы).
 - `status()` — когда последний раз обновляли, сколько записей.
-
-## Запуск вручную (для отладки)
-
-```
-node poc.mjs hapoalim        # ручной вход Hapoalim + извлечение
-node poc-isracard.mjs        # Cloudflare + извлечение Isracard
-```
+- `reconcile({from?, to?})` — сверка баланса: `currentBalance`, `pendingCardBill`, `availableBalance` и period-ledger. Баланс двигают лумповые погашения карт, а не детальные покупки — не складывай их.
 
 ## Структура
 
 - `config.mjs` — Chrome, профили, провайдеры, чтение `.env`.
-- `src/browser.mjs` — запуск видимого Chrome с постоянным профилем.
+- `src/server.mjs` — MCP-сервер (stdio), объявляет инструменты.
+- `src/refresh.mjs` — диспетчер обновления (per-provider стратегия) + warmup.
 - `src/extractors/hapoalim.mjs` — извлечение Hapoalim из живой сессии.
-- `src/refresh.mjs` — диспетчер обновления (per-provider стратегия).
-- `src/store.mjs` — SQLite (node:sqlite), upsert/дедуп.
-- `src/server.mjs` — MCP-сервер (stdio).
+- `src/fetch-helpers.mjs` — in-page `fetch` в авторизованной странице.
+- `src/store.mjs` — SQLite (node:sqlite), upsert/дедуп, `reconcile`.
 
 ## Приватность
 
