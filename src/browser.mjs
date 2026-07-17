@@ -3,11 +3,11 @@
 // visible so the user can complete 2FA / CAPTCHA themselves.
 
 import puppeteer from 'puppeteer-core';
-import { CHROME, profileDir } from '../config.mjs';
+import { getChrome, profileDir } from '../config.mjs';
 
 export async function launch(provider) {
   return puppeteer.launch({
-    executablePath: CHROME,
+    executablePath: getChrome(),
     headless: false,
     userDataDir: profileDir(provider),
     defaultViewport: null,

@@ -4,7 +4,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { DATA_DIR } from '../config.mjs';
+import { DATA_DIR, BANK_PROVIDERS, CARD_PROVIDERS } from '../config.mjs';
 
 const db = new DatabaseSync(join(DATA_DIR, 'bank.db'));
 
@@ -121,37 +121,42 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 // number from the balance change, and must never be summed with the repayments.
 // The current balance is also "inflated": recent card purchases aren't billed to
 // the account yet. This returns concrete figures for all of that.
+// Generic across whatever providers exist: BANK providers carry the balance and
+// the lump card-repayment debits; CARD providers carry itemized purchases and
+// their future billing dates. No provider is hardcoded.
+const CARD_REPAY_RE = /מסטרקרד|כרטיסי אשראי|ישראכרט|לאומי קארד|ויזה|מקס|max|visa|isracard|amex|mastercard/i;
+
 export function reconcile({ from, to } = {}) {
+  const banks = new Set(BANK_PROVIDERS);
+  const cards = new Set(CARD_PROVIDERS);
+
   const accts = listAccounts();
   const currentBalance = r2(accts.filter(a => a.balance != null).reduce((s, a) => s + a.balance, 0));
 
-  // Accurate pending bill: Isracard records each purchase's billing date
-  // (processed_date). Purchases whose billing date is still in the future have NOT
-  // been debited from the account yet — that's the upcoming card bill.
+  // Upcoming card bill: card purchases whose billing date (processed_date) is still
+  // in the future have NOT been debited from the account yet.
   const now = new Date().toISOString();
-  const pend = db.prepare(
-    `SELECT COALESCE(SUM(charged_amount),0) s, COUNT(*) n FROM transactions
-     WHERE provider='isracard' AND charged_amount < 0 AND processed_date > ?`,
-  ).get(now);
-  const pendingCardBill = r2(pend.s); // negative
+  const allTx = getTransactions({ from: from || '0000', to: to || '9999', limit: 1000000 });
+  const futureCard = getTransactions({ limit: 1000000 })
+    .filter(t => cards.has(t.provider) && t.charged_amount < 0 && t.processed_date && t.processed_date > now);
+  const pendingCardBill = r2(futureCard.reduce((s, t) => s + t.charged_amount, 0)); // negative
 
-  // period ledger check (optional): current = start + net over [from,to]
+  // Period ledger check: current balance = start + net of bank movements over [from,to].
   let ledger = null;
   if (from || to) {
-    const hap = getTransactions({ provider: 'hapoalim', from, to, limit: 100000 });
-    const net = r2(hap.reduce((s, t) => s + (t.charged_amount || 0), 0));
-    const repay = r2(hap.filter(t => t.charged_amount < 0 && /מסטרקרד|כרטיסי אשראי/.test(t.description || '')).reduce((s, t) => s + t.charged_amount, 0));
-    const isr = getTransactions({ provider: 'isracard', from, to, limit: 100000 });
-    const consumption = r2(isr.filter(t => t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0));
-    ledger = { from, to, ledgerNet: net, impliedStartBalance: r2(currentBalance - net), cardRepaymentsDebited: repay, isracardConsumption: consumption };
+    const bankTx = allTx.filter(t => banks.has(t.provider));
+    const net = r2(bankTx.reduce((s, t) => s + (t.charged_amount || 0), 0));
+    const repay = r2(bankTx.filter(t => t.charged_amount < 0 && CARD_REPAY_RE.test(t.description || '')).reduce((s, t) => s + t.charged_amount, 0));
+    const consumption = r2(allTx.filter(t => cards.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0));
+    ledger = { from, to, banks: [...banks], cards: [...cards], ledgerNet: net, impliedStartBalance: r2(currentBalance - net), cardRepaymentsDebited: repay, cardConsumption: consumption };
   }
 
   return {
     currentBalance,
     pendingCardBill,            // card purchases with a future billing date (negative)
-    pendingCount: pend.n,
+    pendingCount: futureCard.length,
     availableBalance: r2(currentBalance + pendingCardBill),
-    note: 'availableBalance = currentBalance − upcoming card bill. Spending (isracardConsumption) ≠ balance change: the balance moves via cardRepaymentsDebited, never sum both.',
+    note: 'availableBalance = currentBalance − upcoming card bill. Card spending (cardConsumption) ≠ balance change: the balance moves via bank card repayments (cardRepaymentsDebited); never sum both.',
     ledger,
   };
 }

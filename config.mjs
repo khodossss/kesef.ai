@@ -9,19 +9,39 @@ import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// System Chrome (no bundled Chromium download). Falls back to Edge.
+// System Chrome/Edge (no bundled Chromium download). Cross-platform.
+// Override with CHROME_PATH in .env if installed somewhere unusual.
 const CHROME_CANDIDATES = [
+  // macOS
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  // Windows
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  process.env.LOCALAPPDATA
-    ? join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe')
-    : null,
+  process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe') : null,
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  // Linux
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+  '/usr/bin/microsoft-edge',
 ].filter(Boolean);
 
-export const CHROME = CHROME_CANDIDATES.find(p => existsSync(p));
-if (!CHROME) throw new Error('No system Chrome/Edge found in known locations');
+// Lazy — resolved only when actually launching a browser, so a missing Chrome
+// doesn't crash the whole MCP server at import (read-only tools keep working).
+export function getChrome() {
+  const override = process.env.CHROME_PATH;
+  if (override && existsSync(override)) return override;
+  const found = CHROME_CANDIDATES.find(p => existsSync(p));
+  if (!found) {
+    throw new Error('No system Chrome/Edge found. Install Google Chrome, or set CHROME_PATH in .env to the browser executable.');
+  }
+  return found;
+}
 
 export const PROFILES_DIR = join(__dirname, 'profiles');
 export const DATA_DIR = join(__dirname, 'data');
@@ -40,6 +60,7 @@ export function safeUrl(page) {
 export const PROVIDERS = {
   hapoalim: {
     companyId: CompanyTypes.hapoalim,
+    kind: 'bank',
     // LOGIN MODE: autofill-then-otp. We auto-fill userCode + password and click
     // login; the human only enters the SMS OTP (step-up) in the window. Data is
     // then read from the live authenticated session (2FA still can't be automated).
@@ -60,6 +81,7 @@ export const PROVIDERS = {
   },
   leumi: {
     companyId: CompanyTypes.leumi,
+    kind: 'bank',
     // LOGIN MODE: auto-visible. Leumi logs in with username+password (NO OTP), done
     // automatically by the library. The visible browser lets the human step in only
     // if a rare challenge/interstitial appears. Extraction is the library's too.
@@ -71,6 +93,7 @@ export const PROVIDERS = {
   },
   isracard: {
     companyId: CompanyTypes.isracard,
+    kind: 'card',
     // LOGIN MODE: cloudflare-then-auto. The human only clears the Cloudflare check
     // (often automatic on a warm profile). The library then logs in automatically
     // with the stored credentials (id + card6 + password; NO SMS). The cf_clearance
@@ -114,5 +137,20 @@ export function getCredentials(provider) {
   if (missing.length) throw new Error(`Missing credentials for ${provider}: ${missing.join(', ')}`);
   return creds;
 }
+
+// Which providers are actually set up on THIS machine (creds present in .env).
+// The agent must discover the real combination here — never assume a fixed one.
+export function listProviders() {
+  const env = loadEnv();
+  return Object.entries(PROVIDERS).map(([provider, p]) => {
+    const creds = p.credentials(env);
+    // "configured" = the user has this account (its credentials are filled in .env).
+    const configured = Object.values(creds).every(v => v && String(v).length > 0);
+    return { provider, kind: p.kind, configured, loginMode: p.loginMode, humanStep: p.humanStep };
+  });
+}
+
+export const BANK_PROVIDERS = Object.entries(PROVIDERS).filter(([, p]) => p.kind === 'bank').map(([k]) => k);
+export const CARD_PROVIDERS = Object.entries(PROVIDERS).filter(([, p]) => p.kind === 'card').map(([k]) => k);
 
 export const MONTHS_BACK = parseInt(process.env.SCRAPE_MONTHS_BACK || '12', 10);
