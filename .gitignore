@@ -1,0 +1,13 @@
+# secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# browser sessions (contain auth cookies) and scraped financial data
+profiles/
+data/
+
+# deps & logs
+node_modules/
+*.log
+npm-debug.log*

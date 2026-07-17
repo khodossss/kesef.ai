@@ -1,0 +1,13 @@
+{
+  "name": "bank-connector-live",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "User-assisted (manual login) MCP + scraper for Israeli banks — native Windows, system Chrome",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "israeli-bank-scrapers-core": "^6.1.4",
+    "puppeteer-core": "^24.10.1"
+  }
+}
