@@ -18,6 +18,7 @@ import {
   householdView,
   householdTxns,
 } from './household/index.mjs';
+import { loadHousehold } from './household/identity.mjs';
 
 // MCP stdio: stdout must carry ONLY JSON-RPC. Route any stray console.log/info/
 // debug/warn (from puppeteer, the scraper library, or our code) to stderr so it
@@ -190,10 +191,20 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         const onProgress = m => console.error(`[refresh:${provider}] ${m}`);
         const result = await refresh(provider, { monthsBack: args.monthsBack, onProgress });
         const saved = store.save(result, new Date().toISOString());
+        let familySynced = false;
+        if (loadHousehold()) {
+          try {
+            await familySync();
+            familySynced = true;
+          } catch (e) {
+            console.error(`[refresh:${provider}] family sync skipped: ${e.message}`);
+          }
+        }
         return text({
           ok: true,
           provider,
           ...saved,
+          familySynced,
           note: 'stored locally; query with get_transactions / list_accounts',
         });
       }
