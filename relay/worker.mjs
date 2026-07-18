@@ -48,7 +48,7 @@ export default {
       if (p[2] === 'members' && p[3]) {
         if (req.method === 'PUT') {
           const body = await req.text();
-          if (body.length > MAX_BLOB) return json({ error: 'too_large' }, 413);
+          if (new TextEncoder().encode(body).length > MAX_BLOB) return json({ error: 'too_large' }, 413);
           await env.ROOMS.put(`room:${hid}:member:${p[3]}`, body, {
             metadata: { updatedAt: new Date().toISOString() },
           });
