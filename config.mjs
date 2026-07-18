@@ -135,6 +135,17 @@ export function loadEnv() {
   return out;
 }
 
+// Absolute path of the active .env (the existing one, else the primary candidate).
+// Exported so the household layer can WRITE keys (family create/join) without
+// re-deriving the path.
+export function envPath() {
+  return [join(__dirname, '.env'), resolve(__dirname, '..', '.env')].find(existsSync) || join(__dirname, '.env');
+}
+
+// Relay endpoint (relay storage mode). Overridable via RELAY_URL in .env.
+// Replace the host with your deployed Cloudflare Worker (see relay/README.md).
+export const DEFAULT_RELAY_URL = 'https://kesef-relay.example.workers.dev';
+
 export function getCredentials(provider) {
   const p = PROVIDERS[provider];
   if (!p) throw new Error(`Unknown provider: ${provider}`);
