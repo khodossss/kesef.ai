@@ -1,9 +1,6 @@
 #!/bin/sh
 # Local quality gate — runs on `git commit`. Enable once with:
 #   git config core.hooksPath .githooks   (npm's "prepare" script does this automatically)
-# Mirrors CI (`npm run verify`): syntax check, lint (zero warnings tolerated by intent),
-# and prettier formatting check. Fast on this small codebase.
+# Mirrors CI: runs the full `npm run verify` (syntax check, lint, format check, tests).
 set -e
-npm run check
-npm run lint
-npm run format:check
+npm run verify

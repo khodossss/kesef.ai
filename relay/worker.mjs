@@ -21,6 +21,8 @@ export default {
       if (req.method === 'POST' && p[0] === 'rooms' && p.length === 1) {
         const { household_id, verifier } = await req.json();
         if (!household_id || !verifier) return json({ error: 'bad_request' }, 400);
+        if (String(household_id).length > 256 || String(verifier).length > 256)
+          return json({ error: 'bad_request' }, 400);
         const key = `room:${household_id}:verifier`;
         const existing = await env.ROOMS.get(key);
         if (existing && !safeEqual(existing, verifier)) return json({ error: 'conflict' }, 409);

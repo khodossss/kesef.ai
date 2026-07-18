@@ -21,7 +21,7 @@ export function writeEnvKeys(patch) {
   const lines = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/) : [];
   for (const [key, value] of Object.entries(patch)) {
     const idx = lines.findIndex(l => new RegExp(`^#?\\s*${key}=`).test(l));
-    const rendered = value === null ? null : `${key}=${value}`;
+    const rendered = value === null ? null : `${key}=${String(value).replace(/[\r\n]+/g, ' ')}`;
     if (idx >= 0) {
       if (rendered === null) lines.splice(idx, 1);
       else lines[idx] = rendered;

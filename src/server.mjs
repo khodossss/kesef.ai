@@ -192,13 +192,13 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         const result = await refresh(provider, { monthsBack: args.monthsBack, onProgress });
         const saved = store.save(result, new Date().toISOString());
         let familySynced = false;
-        if (loadHousehold()) {
-          try {
+        try {
+          if (loadHousehold()) {
             await familySync();
             familySynced = true;
-          } catch (e) {
-            console.error(`[refresh:${provider}] family sync skipped: ${e.message}`);
           }
+        } catch (e) {
+          console.error(`[refresh:${provider}] family sync skipped: ${e.message}`);
         }
         return text({
           ok: true,

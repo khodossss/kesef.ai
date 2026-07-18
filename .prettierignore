@@ -3,3 +3,4 @@ data/
 profiles/
 package-lock.json
 docs/superpowers/
+.superpowers/
