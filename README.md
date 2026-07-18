@@ -26,7 +26,7 @@
   Hapoalim (`HAPOALIM_USERCODE`, `HAPOALIM_PASSWORD`), Leumi (`LEUMI_USERNAME`,
   `LEUMI_PASSWORD`). SMS-код Hapoalim вводится вручную в окне (не хранится).
 
-## MCP-инструменты (в Claude Code: сервер `il-bank-live`)
+## MCP-инструменты (в Claude Code: сервер `kesef`)
 
 - `providers()` — какие банки/карты настроены на этой машине (по кредам в `.env`) и их режим входа. Вызывай первым — набор различается у каждого.
 - `refresh({provider, monthsBack?})` — открывает браузер, ты проходишь вход, данные обновляются в базе. Интерактивно, до нескольких минут.

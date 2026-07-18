@@ -36,8 +36,8 @@ for (const m of ['log', 'info', 'debug', 'warn']) {
   };
 }
 // Never let a stray async error kill the server.
-process.on('unhandledRejection', e => process.stderr.write(`[il-bank-live] unhandledRejection: ${e?.stack || e}\n`));
-process.on('uncaughtException', e => process.stderr.write(`[il-bank-live] uncaughtException: ${e?.stack || e}\n`));
+process.on('unhandledRejection', e => process.stderr.write(`[kesef] unhandledRejection: ${e?.stack || e}\n`));
+process.on('uncaughtException', e => process.stderr.write(`[kesef] uncaughtException: ${e?.stack || e}\n`));
 
 const PROVIDER_ENUM = Object.keys(PROVIDERS); // e.g. hapoalim, leumi, isracard
 
@@ -166,7 +166,7 @@ const TOOLS = [
   },
 ];
 
-const server = new Server({ name: 'il-bank-live', version: '0.1.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'kesef', version: '0.1.0' }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
@@ -238,4 +238,4 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
 });
 
 await server.connect(new StdioServerTransport());
-console.error('[il-bank-live] MCP server ready (stdio)');
+console.error('[kesef] MCP server ready (stdio)');
