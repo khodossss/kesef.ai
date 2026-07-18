@@ -6,7 +6,7 @@ import { parseToken, newHouseholdId, newSecret, formatToken } from './token.mjs'
 import { deriveKey, deriveVerifier, seal, open } from './crypto.mjs';
 import { makeStore, createRoom } from './stores.mjs';
 import { mergeSnapshots, householdAccounts, householdTransactions, householdReconcile } from './merge.mjs';
-import { loadHousehold, writeEnvKeys, newMemberId, displayName } from './identity.mjs';
+import { loadHousehold, writeEnvKeys, newMemberId, displayName, readEnvRaw } from './identity.mjs';
 import { DEFAULT_RELAY_URL } from '../../config.mjs';
 
 // --- relay key material from a cfg that carries a token ---
@@ -67,27 +67,60 @@ export async function familyCreate({ mode = 'relay', info = '', dir = null } = {
   if (mode === 'relay') {
     const token = formatToken({ householdId: newHouseholdId(), secret: newSecret() });
     const { householdId, verifier } = relayKeys({ token });
-    await createRoom({ storage: 'relay', relayUrl: DEFAULT_RELAY_URL, householdId, verifier });
-    writeEnvKeys({ HOUSEHOLD_STORAGE: 'relay', HOUSEHOLD_TOKEN: token, MEMBER_ID: id, MEMBER_INFO: info });
+    const relayUrl = readEnvRaw().RELAY_URL || DEFAULT_RELAY_URL;
+    await createRoom({ storage: 'relay', relayUrl, householdId, verifier });
+    writeEnvKeys({
+      HOUSEHOLD_STORAGE: 'relay',
+      HOUSEHOLD_TOKEN: token,
+      HOUSEHOLD_DIR: null,
+      MEMBER_ID: id,
+      MEMBER_INFO: info,
+    });
     return { ok: true, mode, token, member: { id, info } };
   }
   if (!dir) throw new Error('local mode needs a dir');
-  writeEnvKeys({ HOUSEHOLD_STORAGE: 'local', HOUSEHOLD_DIR: dir, MEMBER_ID: id, MEMBER_INFO: info });
+  writeEnvKeys({
+    HOUSEHOLD_STORAGE: 'local',
+    HOUSEHOLD_DIR: dir,
+    HOUSEHOLD_TOKEN: null,
+    MEMBER_ID: id,
+    MEMBER_INFO: info,
+  });
   return { ok: true, mode, member: { id, info } };
 }
 
 export async function familyJoin({ token = null, dir = null, info = '' } = {}) {
   const id = newMemberId();
+  let cfg;
   if (token) {
-    parseToken(token); // validate
-    writeEnvKeys({ HOUSEHOLD_STORAGE: 'relay', HOUSEHOLD_TOKEN: token, MEMBER_ID: id, MEMBER_INFO: info });
+    parseToken(token); // validate format
+    cfg = { storage: 'relay', token, relayUrl: readEnvRaw().RELAY_URL || DEFAULT_RELAY_URL, member: { id, info } };
   } else if (dir) {
-    writeEnvKeys({ HOUSEHOLD_STORAGE: 'local', HOUSEHOLD_DIR: dir, MEMBER_ID: id, MEMBER_INFO: info });
+    cfg = { storage: 'local', dir, member: { id, info } };
   } else {
     throw new Error('family_join needs a token (relay) or dir (local)');
   }
-  const cfg = requireHousehold();
-  await pullSnapshotsWith(cfg, snapshotThunk(cfg)); // reachability check
+  // reachability check — pull directly so a bad token / unreachable relay throws (pullSnapshotsWith swallows errors)
+  const { store } = storeFor(cfg);
+  await store.pullAll();
+  // persist only after a successful reach; null the other mode's key to avoid stale state
+  if (token) {
+    writeEnvKeys({
+      HOUSEHOLD_STORAGE: 'relay',
+      HOUSEHOLD_TOKEN: token,
+      HOUSEHOLD_DIR: null,
+      MEMBER_ID: id,
+      MEMBER_INFO: info,
+    });
+  } else {
+    writeEnvKeys({
+      HOUSEHOLD_STORAGE: 'local',
+      HOUSEHOLD_DIR: dir,
+      HOUSEHOLD_TOKEN: null,
+      MEMBER_ID: id,
+      MEMBER_INFO: info,
+    });
+  }
   return { ok: true, mode: cfg.storage, member: { id, info } };
 }
 
