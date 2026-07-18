@@ -11,6 +11,7 @@ Local, read-only MCP connector that pulls Israeli-bank balances and transactions
 - **Owner karta**: `#7 «👤 Владелец kesef.ai»` (svatantra 主) — out-of-mandate questions (which banks to support, what counts as an honest reconciliation, privacy trade-offs) go here as `posed_to` vimarshas.
 - **Stack**: Node ≥22 plain ES modules (`.mjs`, no TypeScript, no build step); `@modelcontextprotocol/sdk` (stdio), `puppeteer-core` (system Chrome), `israeli-bank-scrapers-core`, built-in `node:sqlite`.
 - **Production statement**: ships to one user (the owner) on their own Windows machine as a user-scope MCP server (`il-bank-live`). Everything is local: credentials in a git-ignored root `.env`, browser sessions in `profiles/`, data in a `data/bank.db` SQLite file. Cost of breakage: a wrong balance/spending figure in a personal finance report, or — the one unacceptable failure — a credential leak. Strictly read-only: no payments, no transfers, ever.
+- **Family mode** (`src/household/`, optional relay storage) adds one narrow network egress: E2E-sealed, credential-free snapshots to a separately-deployed relay (`relay/`) when `HOUSEHOLD_STORAGE=relay`. Solo use stays fully local — this egress only exists once a household is created/joined.
 
 ## Persistence rules
 
@@ -59,15 +60,16 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 
 ## Commands
 
-| Task                      | Command                                   |
-| ------------------------- | ----------------------------------------- |
-| Run MCP server            | `npm start` (`node src/server.mjs`)       |
-| Syntax check (all `.mjs`) | `npm run check`                           |
-| Lint (zero warnings)      | `npm run lint`                            |
-| Format / check format     | `npm run format` / `npm run format:check` |
-| Full gate (CI parity)     | `npm run verify`                          |
+| Task                      | Command                                       |
+| ------------------------- | --------------------------------------------- |
+| Run MCP server            | `npm start` (`node src/server.mjs`)           |
+| Syntax check (all `.mjs`) | `npm run check`                               |
+| Lint (zero warnings)      | `npm run lint`                                |
+| Format / check format     | `npm run format` / `npm run format:check`     |
+| Unit tests                | `npm test` (`node --test test/**/*.test.mjs`) |
+| Full gate (CI parity)     | `npm run verify`                              |
 
-Pre-commit hook runs `verify` (enable once: `git config core.hooksPath .githooks`; the `prepare` script does this on `npm install`). CI (`.github/workflows/ci.yml`) runs `verify` on push/PR.
+`verify` now runs check → lint → format:check → test. Pre-commit hook runs `verify` (enable once: `git config core.hooksPath .githooks`; the `prepare` script does this on `npm install`). CI (`.github/workflows/ci.yml`) runs `verify` on push/PR.
 
 ## Project structure
 
@@ -76,17 +78,20 @@ Pre-commit hook runs `verify` (enable once: `git config core.hooksPath .githooks
 - `src/extractors/hapoalim.mjs` — Hapoalim extraction from the live authenticated session (bank internal API).
 - `src/fetch-helpers.mjs` — in-page `fetch` helpers (run inside the authenticated browser page).
 - `src/store.mjs` — `node:sqlite` store: upsert/dedup, queries, `reconcile`.
-- `config.mjs` — Chrome discovery, provider table (login modes), `.env` loading, provider discovery.
+- `src/household/` — family-mode core (pure logic + I/O, no browser): `token.mjs` (`kesef1.<id>.<secret>` format), `crypto.mjs` (HKDF key derivation, AES-GCM seal/open, verifier), `identity.mjs` (raw `.env` read/write, member id/display name), `stores.mjs` (`local`/`relay` storage backends), `merge.mjs` (multi-member snapshot merge + `householdReconcile`), `index.mjs` (`familyCreate/Join/Leave/Status/Sync`, `householdView/Txns` — the `family_*` MCP tool handlers in `server.mjs` dispatch here).
+- `relay/` — **separately-deployed** Cloudflare Worker (`worker.mjs` + `wrangler.toml`), not run by this repo's server; see `relay/README.md` for deploy steps. Zero-knowledge: stores only a verifier and sealed member blobs, never plaintext.
+- `config.mjs` — Chrome discovery, provider table (login modes), `.env` loading, provider discovery, `DEFAULT_RELAY_URL`.
 - `tools/check-syntax.mjs` — cross-platform `node --check` over all sources (`npm run check`).
 - `commands/finance-report.md` — the `/finance-report` slash-command flow.
-- `data/`, `profiles/`, `.env` — **git-ignored** (SQLite data, browser sessions w/ auth cookies, credentials).
+- `test/` — `node:test` unit tests for the household pure logic (`token`, `crypto`, `identity`, `merge`, `reconcile-dataset`, `stores`, `family-ops`) plus a server smoke test; run via `npm test`.
+- `data/`, `profiles/`, `.env` — **git-ignored** (SQLite data, browser sessions w/ auth cookies, credentials — now including the family token).
 - **Path alias**: `@bank-assistant/*` — none; there are no aliases and no `tsconfig`.
 
 ## Code conventions
 
 - Plain ES modules only (`.mjs`, `"type":"module"`). No TypeScript, no transpile, no bundler.
 - Prettier: single quotes, `printWidth` 120, trailing commas, `arrowParens: avoid`. ESLint flat config (`eslint.config.mjs`) is authoritative; it declares both Node and browser globals (the extractors' `page.evaluate` callbacks run in the browser).
-- **Test discipline**: none yet — the load-bearing paths are browser-interactive (login/extraction) and hard to unit-test. Gate = lint + format + `node --check` + a manual DB smoke (`import ./src/store.mjs` and read `status()`/`reconcile()`). Add unit tests only for pure logic (e.g. `store.reconcile`, `convertTransactions`) if it grows.
+- **Test discipline**: unit tests exist for the pure household logic (`test/*.test.mjs`, `node:test`, run via `npm test`) — token format, crypto seal/open, `store.reconcileDataset`, `merge.householdReconcile`, storage backends. The bank-side load-bearing paths (login/extraction) are still browser-interactive and hard to unit-test; for those, gate = lint + format + `node --check` + a manual DB smoke (`import ./src/store.mjs` and read `status()`/`reconcile()`). Add unit tests for new pure logic as it grows; leave browser flows to manual verification.
 - **Gotchas**:
   - **MCP stdio purity**: stdout carries ONLY JSON-RPC. `server.mjs` redirects `console.log/info/debug/warn` to stderr — never `console.log` to stdout from server-path code, or the protocol stream corrupts and the connection drops ("Connection closed"). Progress goes to stderr via `onProgress`/`console.error`.
   - **`refresh`/`warmup` are interactive and cannot run headless**: they open a real visible Chrome; the human enters the Hapoalim SMS OTP or clears Isracard's Cloudflare. So any scheduling is "remind the user to refresh", never an autonomous cron. Extraction reads from the live session; a closed window aborts.
@@ -95,6 +100,9 @@ Pre-commit hook runs `verify` (enable once: `git config core.hooksPath .githooks
   - **Credentials**: `.env` lives at the **repo root** (git-ignored), loaded by `config.mjs` (`join(__dirname,'.env')` → `../.env` fallback). Hapoalim SMS is typed only in the browser, never stored. Never stage `.env`, `data/`, or `profiles/` — never `git add -A` blind (they're git-ignored, but treat this as a hard rule).
   - **MCP registration is by absolute path**: `il-bank-live` is registered user-scope pointing at `.../bank_connector/src/server.mjs`. Moving/renaming the repo breaks it — re-run `claude mcp remove/add il-bank-live -s user`.
   - **`defaultTimeout` in `libScrape` is load-bearing for Leumi (do NOT drop it)**: the library's `waitForPostLogin()` races the success selectors (60s) against an invalid-password `waitForSelector` that has NO explicit timeout, so it inherits the page's default timeout. Below ~60s that error branch rejects the race first and a **successful** login surfaces as `GENERIC Waiting for selector .../שגויים failed` — a false "invalid credentials". Keep `defaultTimeout: 120000` in the `createScraper` options (`refresh.mjs`). A prior mode-B refactor swapped it for `timeout: 0` (a different option — navigation only) and silently broke Leumi login + account extraction; the symptom is a misleading credential error even though the account is fine.
+  - **The family token is a credential**: `kesef1.<householdId>.<secret>` (`token.mjs`) grants read access to a household's relay room. It lives only in `.env` (`HOUSEHOLD_TOKEN`, written by `identity.writeEnvKeys`) — never log or print it in full; when it must appear in output, redact to `kesef1.***`. Never write it to stdout on the MCP server path (see the stdio-purity gotcha above).
+  - **Household reconcile is per-member, then summed**: `merge.householdReconcile` runs `store.reconcileDataset` once per member's own accounts/transactions/providers and sums the resulting figures — it never matches a card repayment on one member's bank against another member's card. Treat this the same as the single-member dedup gotcha above: don't hand-roll a cross-member match.
+  - **The relay is zero-knowledge**: `relay/worker.mjs` stores only a per-household verifier and per-member sealed blobs (`crypto.mjs` HKDF-derived key, AES-GCM); it never sees plaintext balances/transactions or the secret itself. If a change to `stores.mjs`/`crypto.mjs` ever has the client send anything unsealed to the relay, that breaks the zero-knowledge guarantee — treat it as a credential-leak-class bug.
 
 ## What to update when
 
