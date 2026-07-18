@@ -9,6 +9,15 @@ import { refresh, warmup } from './refresh.mjs';
 import * as store from './store.mjs';
 import { inspect } from 'node:util';
 import { PROVIDERS, listProviders } from '../config.mjs';
+import {
+  familyCreate,
+  familyJoin,
+  familyLeave,
+  familyStatus,
+  familySync,
+  householdView,
+  householdTxns,
+} from './household/index.mjs';
 
 // MCP stdio: stdout must carry ONLY JSON-RPC. Route any stray console.log/info/
 // debug/warn (from puppeteer, the scraper library, or our code) to stderr so it
@@ -65,7 +74,17 @@ const TOOLS = [
     name: 'list_accounts',
     description:
       'List stored accounts/cards with their latest balance and when they were last updated. Reads local data only — no browser.',
-    inputSchema: { type: 'object', properties: { provider: { type: 'string', enum: PROVIDER_ENUM } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        provider: { type: 'string', enum: PROVIDER_ENUM },
+        scope: {
+          type: 'string',
+          enum: ['own', 'household'],
+          description: 'own (this machine) or household (whole family)',
+        },
+      },
+    },
   },
   {
     name: 'get_transactions',
@@ -79,6 +98,7 @@ const TOOLS = [
         to: { type: 'string', description: 'ISO date upper bound' },
         search: { type: 'string', description: 'substring in description/memo' },
         limit: { type: 'number', description: 'max rows (default 500)' },
+        scope: { type: 'string', enum: ['own', 'household'], description: 'own or household' },
       },
     },
   },
@@ -96,8 +116,52 @@ const TOOLS = [
       properties: {
         from: { type: 'string', description: 'ISO date lower bound for the ledger check' },
         to: { type: 'string', description: 'ISO date upper bound for the ledger check' },
+        scope: { type: 'string', enum: ['own', 'household'], description: 'own or household' },
       },
     },
+  },
+  {
+    name: 'family_create',
+    description:
+      'Start a family budget. mode "relay" (default): creates an E2E room and returns a TOKEN to share with family members — they run family_join with it. mode "local": set dir to a shared/synced folder (you sync it yourself). Optional info is a free label shown in reports (e.g. "Дима"); leave empty and you show as "Юзер N".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['relay', 'local'], description: 'relay (token) or local (shared folder)' },
+        info: { type: 'string', description: 'optional display label for you' },
+        dir: { type: 'string', description: 'local mode only: path to the shared/synced folder' },
+      },
+    },
+  },
+  {
+    name: 'family_join',
+    description:
+      'Join an existing family budget. Relay: pass the token you were given. Local: pass the same shared folder path (dir). Optional info is your display label.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'relay token (kesef1.…)' },
+        dir: { type: 'string', description: 'local mode: shared folder path' },
+        info: { type: 'string', description: 'optional display label for you' },
+      },
+    },
+  },
+  {
+    name: 'family_leave',
+    description: 'Leave the family: remove your snapshot from the shared store and clear family keys from .env.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'family_status',
+    description:
+      "Show family mode: who you are, storage mode, the members seen and each one's freshness (last_refresh). Pass setInfo to change your own display label.",
+    inputSchema: { type: 'object', properties: { setInfo: { type: 'string', description: 'new display label' } } },
+  },
+  {
+    name: 'family_sync',
+    description:
+      'Push your latest snapshot to the family store (encrypted in relay mode) and pull the others. Runs automatically after refresh; call manually to force a sync.',
+    inputSchema: { type: 'object', properties: {} },
   },
 ];
 
@@ -134,13 +198,26 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         });
       }
       case 'list_accounts':
+        if (args.scope === 'household') return text((await householdView(args)).accounts);
         return text(store.listAccounts(args.provider));
       case 'get_transactions':
+        if (args.scope === 'household') return text(await householdTxns(args));
         return text(store.getTransactions(args));
       case 'status':
         return text(store.status());
       case 'reconcile':
+        if (args.scope === 'household') return text((await householdView(args)).reconcile);
         return text(store.reconcile(args));
+      case 'family_create':
+        return text(await familyCreate(args));
+      case 'family_join':
+        return text(await familyJoin(args));
+      case 'family_leave':
+        return text(await familyLeave());
+      case 'family_status':
+        return text(await familyStatus(args));
+      case 'family_sync':
+        return text(await familySync());
       default:
         throw new Error(`unknown tool: ${name}`);
     }
