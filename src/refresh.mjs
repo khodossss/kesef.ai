@@ -135,6 +135,13 @@ async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
     executablePath: getChrome(),
     args: [...COMMON_ARGS, `--user-data-dir=${profileDir(provider)}`],
     timeout: 0, // no navigation timeout — gives the human time at Cloudflare / 2FA
+    // page default timeout for ALL implicit waits. LOAD-BEARING for Leumi: its
+    // library waitForPostLogin() races the success selectors (60s) against an
+    // invalid-password waitForSelector that has NO explicit timeout, so it inherits
+    // this default. Below ~60s the error branch rejects the race first and a
+    // successful login is reported as GENERIC. The mode-B refactor dropped this
+    // (was defaultTimeout:120000) — restoring it. Also covers slow account/tx loads.
+    defaultTimeout: 120000,
   });
   // Surface the library's own progress so a slow run doesn't look stuck / like it
   // is waiting for the user to type (it logs in on its own).
