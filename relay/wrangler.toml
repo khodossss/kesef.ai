@@ -5,4 +5,4 @@ compatibility_date = "2024-09-01"
 # Create with: wrangler kv namespace create ROOMS  → paste the id below.
 [[kv_namespaces]]
 binding = "ROOMS"
-id = "PASTE_YOUR_KV_NAMESPACE_ID"
+id = "890143ce76c0442e82fcee0e6d087260"

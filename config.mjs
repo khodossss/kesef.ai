@@ -144,7 +144,7 @@ export function envPath() {
 
 // Relay endpoint (relay storage mode). Overridable via RELAY_URL in .env.
 // Replace the host with your deployed Cloudflare Worker (see relay/README.md).
-export const DEFAULT_RELAY_URL = 'https://kesef-relay.example.workers.dev';
+export const DEFAULT_RELAY_URL = 'https://kesef-relay.khodossss.workers.dev';
 
 export function getCredentials(provider) {
   const p = PROVIDERS[provider];

@@ -17,3 +17,6 @@ docs/superpowers/
 
 # machine-local Claude Code settings (project settings.json IS committed)
 .claude/settings.local.json
+
+# Wrangler local cache/state (relay)
+.wrangler/
