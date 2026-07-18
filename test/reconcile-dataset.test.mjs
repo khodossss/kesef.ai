@@ -29,7 +29,7 @@ test('ledger separates card repayments (bank) from card consumption', () => {
   const r = reconcileDataset({
     accounts: [{ provider: 'leumi', balance: 500 }],
     transactions: [
-      { provider: 'leumi', charged_amount: -800, description: 'חיוב כרטיס אשראי', date: '2026-06-10' },
+      { provider: 'leumi', charged_amount: -800, description: 'חיוב כרטיסי אשראי', date: '2026-06-10' },
       { provider: 'isracard', charged_amount: -300, date: '2026-06-05' },
       { provider: 'isracard', charged_amount: -500, date: '2026-06-06' },
     ],

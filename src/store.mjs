@@ -147,7 +147,7 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 // Generic across whatever providers exist: BANK providers carry the balance and
 // the lump card-repayment debits; CARD providers carry itemized purchases and
 // their future billing dates. No provider is hardcoded.
-const CARD_REPAY_RE = /מסטרקרד|כרטיסי? אשראי|ישראכרט|לאומי קארד|ויזה|מקס|max|visa|isracard|amex|mastercard/i;
+const CARD_REPAY_RE = /מסטרקרד|כרטיסי אשראי|ישראכרט|לאומי קארד|ויזה|מקס|max|visa|isracard|amex|mastercard/i;
 
 // Pure reconciliation over a supplied dataset (no I/O) — reused for own (local DB)
 // and per-member (snapshot) scopes. banks/cards are the provider-name sets.
