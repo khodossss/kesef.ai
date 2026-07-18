@@ -147,28 +147,28 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 // Generic across whatever providers exist: BANK providers carry the balance and
 // the lump card-repayment debits; CARD providers carry itemized purchases and
 // their future billing dates. No provider is hardcoded.
-const CARD_REPAY_RE = /מסטרקרד|כרטיסי אשראי|ישראכרט|לאומי קארד|ויזה|מקס|max|visa|isracard|amex|mastercard/i;
+const CARD_REPAY_RE = /מסטרקרד|כרטיסי? אשראי|ישראכרט|לאומי קארד|ויזה|מקס|max|visa|isracard|amex|mastercard/i;
 
-export function reconcile({ from, to } = {}) {
-  const banks = new Set(BANK_PROVIDERS);
-  const cards = new Set(CARD_PROVIDERS);
+// Pure reconciliation over a supplied dataset (no I/O) — reused for own (local DB)
+// and per-member (snapshot) scopes. banks/cards are the provider-name sets.
+export function reconcileDataset({ accounts, transactions, banks, cards, from, to, now } = {}) {
+  const bankSet = new Set(banks);
+  const cardSet = new Set(cards);
+  const nowIso = now || new Date().toISOString();
 
-  const accts = listAccounts();
-  const currentBalance = r2(accts.filter(a => a.balance != null).reduce((s, a) => s + a.balance, 0));
+  const currentBalance = r2(accounts.filter(a => a.balance != null).reduce((s, a) => s + a.balance, 0));
 
-  // Upcoming card bill: card purchases whose billing date (processed_date) is still
-  // in the future have NOT been debited from the account yet.
-  const now = new Date().toISOString();
-  const allTx = getTransactions({ from: from || '0000', to: to || '9999', limit: 1000000 });
-  const futureCard = getTransactions({ limit: 1000000 }).filter(
-    t => cards.has(t.provider) && t.charged_amount < 0 && t.processed_date && t.processed_date > now,
+  const futureCard = transactions.filter(
+    t => cardSet.has(t.provider) && t.charged_amount < 0 && t.processed_date && t.processed_date > nowIso,
   );
   const pendingCardBill = r2(futureCard.reduce((s, t) => s + t.charged_amount, 0)); // negative
 
-  // Period ledger check: current balance = start + net of bank movements over [from,to].
   let ledger = null;
   if (from || to) {
-    const bankTx = allTx.filter(t => banks.has(t.provider));
+    const inPeriod = transactions.filter(
+      t => (!from || (t.date && t.date >= from)) && (!to || (t.date && t.date <= to)),
+    );
+    const bankTx = inPeriod.filter(t => bankSet.has(t.provider));
     const net = r2(bankTx.reduce((s, t) => s + (t.charged_amount || 0), 0));
     const repay = r2(
       bankTx
@@ -176,13 +176,13 @@ export function reconcile({ from, to } = {}) {
         .reduce((s, t) => s + t.charged_amount, 0),
     );
     const consumption = r2(
-      allTx.filter(t => cards.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0),
+      inPeriod.filter(t => cardSet.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0),
     );
     ledger = {
       from,
       to,
-      banks: [...banks],
-      cards: [...cards],
+      banks: [...bankSet],
+      cards: [...cardSet],
       ledgerNet: net,
       impliedStartBalance: r2(currentBalance - net),
       cardRepaymentsDebited: repay,
@@ -192,10 +192,38 @@ export function reconcile({ from, to } = {}) {
 
   return {
     currentBalance,
-    pendingCardBill, // card purchases with a future billing date (negative)
+    pendingCardBill,
     pendingCount: futureCard.length,
     availableBalance: r2(currentBalance + pendingCardBill),
     note: 'availableBalance = currentBalance − upcoming card bill. Card spending (cardConsumption) ≠ balance change: the balance moves via bank card repayments (cardRepaymentsDebited); never sum both.',
     ledger,
+  };
+}
+
+// own scope: reconcile over the local DB.
+export function reconcile({ from, to } = {}) {
+  return reconcileDataset({
+    accounts: listAccounts(),
+    transactions: getTransactions({ limit: 1000000 }),
+    banks: BANK_PROVIDERS,
+    cards: CARD_PROVIDERS,
+    from,
+    to,
+  });
+}
+
+// Build a portable, credential-free snapshot of THIS machine's data.
+export function exportSnapshot(member) {
+  const accounts = listAccounts();
+  const providerNames = [...new Set(accounts.map(a => a.provider))];
+  const providers = providerNames.map(p => ({ provider: p, kind: BANK_PROVIDERS.includes(p) ? 'bank' : 'card' }));
+  return {
+    schema: 1,
+    member,
+    exported_at: new Date().toISOString(),
+    providers,
+    accounts,
+    transactions: getTransactions({ limit: 1000000 }),
+    refreshes: status(),
   };
 }
