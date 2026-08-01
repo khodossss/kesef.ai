@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
+    "setup": "node tools/setup-form.mjs",
     "check": "node tools/check-syntax.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
