@@ -118,6 +118,19 @@ export const PROVIDERS = {
       password: env.ISRACARD_PASSWORD,
     }),
   },
+  cal: {
+    companyId: CompanyTypes.visaCal,
+    kind: 'card',
+    // LOGIN MODE: auto-visible, same shape as Leumi. Cal logs in with
+    // username + password (the library's visa-cal scraper handles no OTP and no
+    // captcha step); the visible window only lets the human step in if the site
+    // throws a rare challenge or a forced password change.
+    loginMode: 'auto-visible',
+    humanStep: 'обычно ничего — библиотека логинится сама; при челлендже пройти в окне',
+    usesStoredCredentials: true,
+    loginUrl: 'https://www.cal-online.co.il/',
+    credentials: env => ({ username: env.CAL_USERNAME, password: env.CAL_PASSWORD }),
+  },
 };
 
 // Read ../.env, stripping a leading "# " so commented-out lines are still usable
