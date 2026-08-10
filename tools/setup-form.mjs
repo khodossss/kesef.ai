@@ -8,7 +8,7 @@
 // Run: npm run setup
 
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, chmodSync, renameSync } from 'node:fs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -110,14 +110,24 @@ function readHouseholdLines() {
 
 // SCRAPE_MONTHS_BACK is read from process.env (config.mjs), NOT from .env — so it
 // only takes effect through the MCP server's own env block.
+//
+// ~/.claude.json is Claude Code's live global state (every MCP registration and
+// per-project entry), and Claude Code writes it on its own schedule. So this
+// read-modify-write must never leave it half-written: keep a .bak of what we read,
+// then swap the new content in with an atomic rename instead of truncating in place.
 function writeMonthsBack(months) {
   if (!existsSync(CLAUDE_JSON)) return { ok: false, reason: 'нет ~/.claude.json' };
   try {
-    const cfg = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8'));
+    const raw = readFileSync(CLAUDE_JSON, 'utf8');
+    const cfg = JSON.parse(raw);
     const entry = cfg.mcpServers && cfg.mcpServers.kesef;
     if (!entry) return { ok: false, reason: 'сервер kesef не зарегистрирован' };
+    if (entry.env?.SCRAPE_MONTHS_BACK === String(months)) return { ok: true };
     entry.env = { ...(entry.env || {}), SCRAPE_MONTHS_BACK: String(months) };
-    writeFileSync(CLAUDE_JSON, JSON.stringify(cfg, null, 2));
+    writeFileSync(`${CLAUDE_JSON}.bak`, raw);
+    const tmp = `${CLAUDE_JSON}.kesef-tmp`;
+    writeFileSync(tmp, JSON.stringify(cfg, null, 2));
+    renameSync(tmp, CLAUDE_JSON); // same directory → atomic replace
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: e.message };
