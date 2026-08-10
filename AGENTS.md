@@ -56,13 +56,14 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 
 - **Node ≥22** — required for built-in `node:sqlite` (`data/bank.db`). No native SQLite build, no `better-sqlite3`.
 - **`puppeteer-core`** — uses **system Chrome/Edge**, never downloads Chromium (`config.mjs` → `CHROME_CANDIDATES`, override `CHROME_PATH`).
-- **`israeli-bank-scrapers-core`** — library login + extraction for Leumi/Isracard; Hapoalim is extracted by our own code (`src/extractors/hapoalim.mjs`) against the live session (its 2FA can't be automated).
+- **`israeli-bank-scrapers-core`** — library login + extraction for Leumi/Isracard/Cal; Hapoalim is extracted by our own code (`src/extractors/hapoalim.mjs`) against the live session (its 2FA can't be automated).
 
 ## Commands
 
 | Task                      | Command                                       |
 | ------------------------- | --------------------------------------------- |
 | Run MCP server            | `npm start` (`node src/server.mjs`)           |
+| Fill `.env` via a form    | `npm run setup` (`node tools/setup-form.mjs`) |
 | Syntax check (all `.mjs`) | `npm run check`                               |
 | Lint (zero warnings)      | `npm run lint`                                |
 | Format / check format     | `npm run format` / `npm run format:check`     |
@@ -82,6 +83,7 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 - `relay/` — **separately-deployed** Cloudflare Worker (`worker.mjs` + `wrangler.toml`), not run by this repo's server; see `relay/README.md` for deploy steps. Zero-knowledge: stores only a verifier and sealed member blobs, never plaintext.
 - `config.mjs` — Chrome discovery, provider table (login modes), `.env` loading, provider discovery, `DEFAULT_RELAY_URL`.
 - `tools/check-syntax.mjs` — cross-platform `node --check` over all sources (`npm run check`).
+- `tools/setup-form.mjs` — one-shot local form for writing the root `.env` (`npm run setup`): binds 127.0.0.1 on a random port behind a per-run token, serves one page with no external assets, writes `.env` at mode 600, then exits. Never sends saved secrets back to the page. It also writes `SCRAPE_MONTHS_BACK` into the `kesef` entry of `~/.claude.json` (see the `SCRAPE_MONTHS_BACK` gotcha below) — atomically, via temp file + rename, keeping a `.bak`.
 - `commands/finance-report.md` — the `/finance-report` slash-command flow.
 - `test/` — `node:test` unit tests for the household pure logic (`token`, `crypto`, `identity`, `merge`, `reconcile-dataset`, `stores`, `family-ops`) plus a server smoke test; run via `npm test`.
 - `data/`, `profiles/`, `.env` — **git-ignored** (SQLite data, browser sessions w/ auth cookies, credentials — now including the family token).
@@ -98,6 +100,9 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
   - **Reconciliation dedup (correctness-critical)**: the account balance moves via **lump card repayments** (bank debits matching `CARD_REPAY_RE` in `store.mjs`), NOT the itemized card purchases. Spending (Isracard itemized) and balance change are _different numbers_ — **never sum them**. `store.reconcile` returns the concrete figures; use it, don't hand-roll. This is the standing double-count risk (vimarsha `#4` in `r149`).
   - **Never assume a fixed bank/card set**: which providers are configured differs per machine. Call the `providers` tool first; it reads `.env` presence. Ask the user only about configured providers.
   - **Credentials**: `.env` lives at the **repo root** (git-ignored), loaded by `config.mjs` (`join(__dirname,'.env')` → `../.env` fallback). Hapoalim SMS is typed only in the browser, never stored. Never stage `.env`, `data/`, or `profiles/` — never `git add -A` blind (they're git-ignored, but treat this as a hard rule).
+  - **Commenting out a credential in `.env` does NOT disable it**: `config.loadEnv` strips a leading `# ` before parsing, so `# LEUMI_PASSWORD=…` still counts as configured and the provider still shows up in `providers`. To actually disable a provider, delete its lines or blank the values. `tools/setup-form.mjs` therefore omits unused providers entirely rather than commenting them out.
+  - **`SCRAPE_MONTHS_BACK` is read from `process.env`, not from `.env`**: `config.mjs` ends with `parseInt(process.env.SCRAPE_MONTHS_BACK || '12', 10)`, which never consults `loadEnv()`. Setting it in `.env` is silently ignored and the depth stays 12 months — it only takes effect from the `env` block of the `kesef` MCP registration in `~/.claude.json` (or a real shell env var). Anything rewriting that file must do it atomically: it is Claude Code's live global state, not a config this repo owns.
+  - **Card-repayment matching is spelling-sensitive**: `CARD_REPAY_RE` in `store.mjs` matches free-text Hebrew bank descriptions, and banks spell the same issuer several ways (Leumi writes `מאסטרקרד` **with** an alef; the alef-less form also occurs). A missed spelling doesn't error — it silently drops those lump debits from `cardRepaymentsDebited`, which is exactly the figure that stops card spending being double-counted. When adding a card provider, add its spellings **and** pin them in `test/reconcile-dataset.test.mjs` with descriptions copied from a real statement, including near-misses that must NOT match (e.g. `כאלה` "such" vs. `כאל` Cal, and debit-card charges, which are not bill repayments).
   - **MCP registration is by absolute path**: `kesef` is registered user-scope pointing at `.../bank_connector/src/server.mjs`. Moving/renaming the repo breaks it — re-run `claude mcp remove/add kesef -s user`.
   - **`defaultTimeout` in `libScrape` is load-bearing for Leumi (do NOT drop it)**: the library's `waitForPostLogin()` races the success selectors (60s) against an invalid-password `waitForSelector` that has NO explicit timeout, so it inherits the page's default timeout. Below ~60s that error branch rejects the race first and a **successful** login surfaces as `GENERIC Waiting for selector .../שגויים failed` — a false "invalid credentials". Keep `defaultTimeout: 120000` in the `createScraper` options (`refresh.mjs`). A prior mode-B refactor swapped it for `timeout: 0` (a different option — navigation only) and silently broke Leumi login + account extraction; the symptom is a misleading credential error even though the account is fine.
   - **The family token is a credential**: `kesef1.<householdId>.<secret>` (`token.mjs`) grants read access to a household's relay room. It lives only in `.env` (`HOUSEHOLD_TOKEN`, written by `identity.writeEnvKeys`) — never log or print it in full; when it must appear in output, redact to `kesef1.***`. Never write it to stdout on the MCP server path (see the stdio-purity gotcha above).
